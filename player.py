@@ -1,62 +1,73 @@
+# player.py
+
 import pygame
-from constants import *
-from circleshape import CircleShape  # Assuming you have this base class
+import math
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT
 
-class Player(CircleShape):
-    containers = ()  # This will be set externally to groups
+class Player(pygame.sprite.Sprite):
+    def __init__(self, pos):
+        super().__init__()
+        self.original_image = pygame.image.load("assets/ship.png").convert_alpha()
+        self.image = self.original_image
+        self.rect = self.image.get_rect(center=pos)
+        self.pos = pygame.Vector2(pos)
+        self.vel = pygame.Vector2(0, 0)
+        self.angle = 0
+        self.rotation_speed = 200  # degrees per second
+        self.acceleration = 200  # pixels per second squared
+        self.max_speed = 300
+        self.friction = 0.99
+        self.lives = 3
+        self.respawn_timer = 0
+        self.shield = False
 
-    def __init__(self, x, y):
-        super().__init__(x, y, PLAYER_RADIUS)
-        self.rotation = 0
-        self.shoot_cooldown = 0
+    def update(self, dt, keys):
+        if self.respawn_timer > 0:
+            self.respawn_timer -= dt
+            if self.respawn_timer <= 0:
+                self.pos = pygame.Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                self.vel = pygame.Vector2(0, 0)
 
-    def triangle(self):
-        forward = pygame.Vector2(0, 1).rotate(self.rotation)
-        right = pygame.Vector2(0, 1).rotate(self.rotation + 90) * self.radius / 1.5
-        a = self.position + forward * self.radius
-        b = self.position - forward * self.radius - right
-        c = self.position - forward * self.radius + right
-        return [a, b, c]
+        # Rotation
+        if keys[pygame.K_LEFT]:
+            self.angle += self.rotation_speed * dt
+        if keys[pygame.K_RIGHT]:
+            self.angle -= self.rotation_speed * dt
 
-    def draw(self, screen):
-        pygame.draw.polygon(screen, (255, 255, 255), self.triangle(), 2)
+        # Acceleration
+        if keys[pygame.K_UP]:
+            direction = pygame.Vector2(
+                -math.sin(math.radians(self.angle)),
+                -math.cos(math.radians(self.angle))
+            )
+            self.vel += direction * self.acceleration * dt
 
-    def rotate(self, dt, direction=1):
-        # direction: 1 for right, -1 for left
-        self.rotation += PLAYER_TURN_SPEED * dt * direction
+        # Friction
+        self.vel *= self.friction
 
-    def move(self, dt, forward=True):
-        direction_vector = pygame.Vector2(0, 1).rotate(self.rotation)
-        if not forward:
-            direction_vector = -direction_vector
-        self.position += direction_vector * PLAYER_SPEED * dt
+        # Limit speed
+        if self.vel.length() > self.max_speed:
+            self.vel.scale_to_length(self.max_speed)
 
-    def shoot(self):
-        if self.shoot_cooldown > 0:
-            return  # still cooling down, cannot shoot
+        # Move
+        self.pos += self.vel * dt
 
-        # Create a new shot at the player's position moving forward
-        from shot import Shot  # Import here to avoid circular imports
-        shot = Shot(self.position.x, self.position.y)
-        forward = pygame.Vector2(0, 1).rotate(self.rotation)
-        shot.velocity = forward * PLAYER_SHOOT_SPEED
+        # Screen wrap
+        if self.pos.x < 0:
+            self.pos.x = SCREEN_WIDTH
+        elif self.pos.x > SCREEN_WIDTH:
+            self.pos.x = 0
+        if self.pos.y < 0:
+            self.pos.y = SCREEN_HEIGHT
+        elif self.pos.y > SCREEN_HEIGHT:
+            self.pos.y = 0
 
-        self.shoot_cooldown = PLAYER_SHOOT_COOLDOWN
+        # Rotate image and update rect
+        self.image = pygame.transform.rotate(self.original_image, self.angle)
+        self.rect = self.image.get_rect(center=self.pos)
 
-    def update(self, dt):
-        keys = pygame.key.get_pressed()
-
-        if keys[pygame.K_a]:
-            self.rotate(dt, direction=-1)
-        if keys[pygame.K_d]:
-            self.rotate(dt, direction=1)
-        if keys[pygame.K_w]:
-            self.move(dt, forward=True)
-        if keys[pygame.K_s]:
-            self.move(dt, forward=False)
-        if keys[pygame.K_SPACE]:
-            self.shoot()
-
-        if self.shoot_cooldown > 0:
-            self.shoot_cooldown -= dt
-
+    def respawn(self):
+        self.lives -= 1
+        self.respawn_timer = 3  # seconds invulnerability
+        self.pos = pygame.Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        self.vel = pygame.Vector2(0, 0)
