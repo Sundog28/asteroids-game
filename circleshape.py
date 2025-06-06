@@ -1,16 +1,24 @@
-# circleshape.py
-
 import pygame
 
+
+# Base class for game objects
 class CircleShape(pygame.sprite.Sprite):
-    def __init__(self, pos, radius, color=(255, 255, 255)):
-        super().__init__()
-        diameter = radius * 2
-        self.image = pygame.Surface((diameter, diameter), pygame.SRCALPHA)
-        pygame.draw.circle(self.image, color, (radius, radius), radius)
-        self.rect = self.image.get_rect(center=pos)
-        self.pos = pygame.Vector2(pos)
+    def __init__(self, x, y, radius):
+        if hasattr(self, "containers"):
+            super().__init__(self.containers)
+        else:
+            super().__init__()
+        self.position = pygame.Vector2(x, y)
+        self.velocity = pygame.Vector2(0, 0)
         self.radius = radius
 
+    def draw(self, screen):
+        # must override
+        pass
+
     def update(self, dt):
-        pass  # Add movement or behavior if needed
+        # must override
+        pass
+
+    def collides_with(self, other):
+        return self.position.distance_to(other.position) <= self.radius + other.radius
